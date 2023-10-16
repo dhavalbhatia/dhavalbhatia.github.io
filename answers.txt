@@ -1,0 +1,19 @@
+Q1) 
+    Advantages:
+    
+    1. A static website generator like Pelican can prove to be very beneficial
+    when it comes to quickly starting up a website with simple features.
+    
+    2. It is also easy to add basic components to it by simply creating files 
+    under content. 
+
+    3. It also does not require any database or server side logic.
+
+
+    Disadvantages: 
+    
+    1. Customization is hard, and may require greater html, css knowledge.
+
+    2. Managing large amounts of data can be challenging 
+
+Q2) 
