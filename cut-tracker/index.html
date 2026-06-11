@@ -271,11 +271,16 @@
         font-size: 0.9rem;
       }
 
-      .entry-calories {
+      .entry-numbers {
         text-align: right;
       }
 
-      .entry-calories strong {
+      .entry-number-label {
+        display: block;
+        margin-top: 8px;
+      }
+
+      .entry-numbers strong {
         display: block;
         font-size: 1.32rem;
       }
@@ -316,7 +321,7 @@
         }
 
         .stats {
-          grid-template-columns: repeat(4, minmax(0, 1fr));
+          grid-template-columns: repeat(5, minmax(0, 1fr));
         }
       }
 
@@ -327,7 +332,7 @@
           grid-template-columns: 1fr;
         }
 
-        .entry-calories,
+        .entry-numbers,
         .entries-top p {
           text-align: left;
         }
@@ -362,6 +367,10 @@
           <article class="stat">
             <span class="stat-label">Today's Entries</span>
             <strong class="stat-value" id="todayCount">0</strong>
+          </article>
+          <article class="stat">
+            <span class="stat-label">Today's Protein</span>
+            <strong class="stat-value" id="todayProtein">0g</strong>
           </article>
           <article class="stat">
             <span class="stat-label">All Entries</span>
@@ -404,6 +413,20 @@
             </label>
 
             <label>
+              Protein (g)
+              <input
+                id="protein"
+                name="protein"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                step="1"
+                placeholder="35"
+                required
+              />
+            </label>
+
+            <label>
               Time Added
               <input id="timePreview" type="text" disabled />
             </label>
@@ -432,10 +455,12 @@
       const form = document.getElementById("entryForm");
       const descriptionInput = document.getElementById("description");
       const caloriesInput = document.getElementById("calories");
+      const proteinInput = document.getElementById("protein");
       const timePreviewInput = document.getElementById("timePreview");
       const entriesContainer = document.getElementById("entries");
       const todayCalories = document.getElementById("todayCalories");
       const todayCount = document.getElementById("todayCount");
+      const todayProtein = document.getElementById("todayProtein");
       const allCount = document.getElementById("allCount");
       const latestTime = document.getElementById("latestTime");
       const latestEntry = document.getElementById("latestEntry");
@@ -458,8 +483,15 @@
 
         const description = descriptionInput.value.trim();
         const calories = Number.parseInt(caloriesInput.value, 10);
+        const protein = Number.parseInt(proteinInput.value, 10);
 
-        if (!description || Number.isNaN(calories) || calories < 0) {
+        if (
+          !description
+          || Number.isNaN(calories)
+          || calories < 0
+          || Number.isNaN(protein)
+          || protein < 0
+        ) {
           return;
         }
 
@@ -467,6 +499,7 @@
           id: crypto.randomUUID(),
           description,
           calories,
+          protein,
           createdAt: new Date().toISOString(),
         };
 
@@ -513,10 +546,14 @@
           return formatDayKey(new Date(entry.createdAt)) === todayKey;
         });
         const totalToday = todaysEntries.reduce((sum, entry) => sum + entry.calories, 0);
+        const totalProteinToday = todaysEntries.reduce((sum, entry) => {
+          return sum + (entry.protein || 0);
+        }, 0);
         const mostRecentEntry = entries[0];
 
         todayCalories.textContent = String(totalToday);
         todayCount.textContent = String(todaysEntries.length);
+        todayProtein.textContent = `${totalProteinToday}g`;
         allCount.textContent = String(entries.length);
         latestTime.textContent = mostRecentEntry ? formatTime(mostRecentEntry.createdAt) : "--";
         latestEntry.textContent = mostRecentEntry
@@ -538,9 +575,11 @@
                   <p class="entry-meta">${formatTimestamp(entry.createdAt)}</p>
                   <button class="delete" type="button" data-id="${entry.id}">Delete</button>
                 </div>
-                <div class="entry-calories">
+                <div class="entry-numbers">
                   <span class="entry-meta">Calories</span>
                   <strong>${entry.calories}</strong>
+                  <span class="entry-meta entry-number-label">Protein</span>
+                  <strong>${entry.protein || 0}g</strong>
                 </div>
               </article>
             `;
