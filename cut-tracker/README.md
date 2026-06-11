@@ -8,6 +8,7 @@ Simple intake tracker for logging:
 - water
 - chosen entry time
 - day-by-day expandable history
+- export and import backups
 
 ## Run locally
 

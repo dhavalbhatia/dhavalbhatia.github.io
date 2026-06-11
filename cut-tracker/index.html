@@ -192,6 +192,12 @@
         gap: 10px;
       }
 
+      .utility-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
       button {
         min-height: 50px;
         border: 0;
@@ -218,6 +224,10 @@
       .secondary {
         background: rgba(31, 26, 23, 0.08);
         color: var(--ink);
+      }
+
+      .ghost-input {
+        display: none;
       }
 
       .install-button {
@@ -509,6 +519,18 @@
             <button class="primary" type="submit">Add Entry</button>
             <button class="secondary" id="clearAll" type="button">Clear All</button>
           </div>
+
+          <div class="utility-actions">
+            <button class="secondary" id="exportData" type="button">Export Backup</button>
+            <button class="secondary" id="importData" type="button">Import Backup</button>
+          </div>
+
+          <input
+            class="ghost-input"
+            id="importFile"
+            type="file"
+            accept="application/json"
+          />
         </form>
 
         <p class="status" id="statusMessage"></p>
@@ -540,6 +562,9 @@
       const latestTime = document.getElementById("latestTime");
       const latestEntry = document.getElementById("latestEntry");
       const clearAllButton = document.getElementById("clearAll");
+      const exportDataButton = document.getElementById("exportData");
+      const importDataButton = document.getElementById("importData");
+      const importFileInput = document.getElementById("importFile");
       const statusMessage = document.getElementById("statusMessage");
       const installButton = document.getElementById("installButton");
       const installHint = document.getElementById("installHint");
@@ -611,6 +636,43 @@
         setStatus("All entries cleared.");
       });
 
+      exportDataButton.addEventListener("click", () => {
+        exportEntries();
+      });
+
+      importDataButton.addEventListener("click", () => {
+        importFileInput.click();
+      });
+
+      importFileInput.addEventListener("change", async () => {
+        const [file] = importFileInput.files;
+        if (!file) {
+          return;
+        }
+
+        try {
+          const text = await file.text();
+          const parsed = JSON.parse(text);
+          const importedEntries = normalizeImportedEntries(parsed);
+
+          if (!importedEntries.length) {
+            setStatus("That backup file did not contain any entries.");
+            return;
+          }
+
+          const mergedEntries = dedupeEntries([...importedEntries, ...entries]);
+          entries.length = 0;
+          entries.push(...mergedEntries);
+          saveEntries();
+          render();
+          setStatus(`Imported ${importedEntries.length} entries.`);
+        } catch {
+          setStatus("Could not import that backup file.");
+        } finally {
+          importFileInput.value = "";
+        }
+      });
+
       function loadEntries() {
         try {
           const saved = localStorage.getItem(STORAGE_KEY);
@@ -622,6 +684,33 @@
 
       function saveEntries() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+      }
+
+      function exportEntries() {
+        if (!entries.length) {
+          setStatus("There are no entries to export yet.");
+          return;
+        }
+
+        const payload = {
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          entries,
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const stamp = formatExportStamp(new Date());
+
+        link.href = url;
+        link.download = `cut-tracker-backup-${stamp}.json`;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        setStatus("Backup exported.");
       }
 
       function render() {
@@ -857,6 +946,57 @@
 
       function formatWater(value) {
         return Number.isInteger(value) ? String(value) : value.toFixed(1);
+      }
+
+      function formatExportStamp(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        const hours = String(date.getHours()).padStart(2, "0");
+        const minutes = String(date.getMinutes()).padStart(2, "0");
+        return `${year}-${month}-${day}-${hours}${minutes}`;
+      }
+
+      function normalizeImportedEntries(payload) {
+        const source = Array.isArray(payload) ? payload : payload.entries;
+        if (!Array.isArray(source)) {
+          return [];
+        }
+
+        return source
+          .filter((entry) => {
+            return (
+              entry
+              && typeof entry.description === "string"
+              && Number.isFinite(Number(entry.calories))
+              && typeof entry.createdAt === "string"
+            );
+          })
+          .map((entry) => {
+            return {
+              id: typeof entry.id === "string" ? entry.id : crypto.randomUUID(),
+              description: entry.description.trim(),
+              calories: Number(entry.calories),
+              protein: Number(entry.protein || 0),
+              water: Number(entry.water || 0),
+              createdAt: entry.createdAt,
+            };
+          })
+          .filter((entry) => entry.description);
+      }
+
+      function dedupeEntries(sourceEntries) {
+        const seenIds = new Set();
+        return sourceEntries
+          .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+          .filter((entry) => {
+            if (seenIds.has(entry.id)) {
+              return false;
+            }
+
+            seenIds.add(entry.id);
+            return true;
+          });
       }
 
       function escapeHtml(value) {
