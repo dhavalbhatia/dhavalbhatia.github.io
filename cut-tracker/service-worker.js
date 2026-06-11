@@ -1,4 +1,4 @@
-const CACHE_NAME = "cut-tracker-v3";
+const CACHE_NAME = "cut-tracker-v4";
 const APP_ASSETS = [
   "./",
   "./index.html",

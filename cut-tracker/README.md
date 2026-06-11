@@ -5,7 +5,8 @@ Simple intake tracker for logging:
 - what you ate or drank
 - calories
 - protein
-- time added
+- water
+- chosen entry time
 - day-by-day expandable history
 
 ## Run locally

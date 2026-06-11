@@ -182,7 +182,7 @@
 
       .field-row {
         display: grid;
-        grid-template-columns: 1.2fr 1fr 1fr;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 12px;
       }
 
@@ -375,7 +375,7 @@
         }
 
         .stats {
-          grid-template-columns: repeat(5, minmax(0, 1fr));
+          grid-template-columns: repeat(6, minmax(0, 1fr));
         }
       }
 
@@ -400,8 +400,8 @@
         <p class="eyebrow">Abs In 3 Months</p>
         <h1>Cut Tracker</h1>
         <p class="subtext">
-          Log what you ate, enter the calories yourself, and let the app stamp the
-          time. Fast enough to use between meals.
+          Log what you ate, enter calories, protein, water, and choose the time
+          yourself. Fast enough to use between meals.
         </p>
         <div class="install-row">
           <button class="install-button" id="installButton" type="button" hidden>
@@ -426,6 +426,10 @@
           <article class="stat">
             <span class="stat-label">Today's Protein</span>
             <strong class="stat-value" id="todayProtein">0g</strong>
+          </article>
+          <article class="stat">
+            <span class="stat-label">Today's Water</span>
+            <strong class="stat-value" id="todayWater">0</strong>
           </article>
           <article class="stat">
             <span class="stat-label">Days Logged</span>
@@ -482,8 +486,22 @@
             </label>
 
             <label>
-              Time Added
-              <input id="timePreview" type="text" disabled />
+              Water
+              <input
+                id="water"
+                name="water"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                step="0.1"
+                placeholder="16"
+                required
+              />
+            </label>
+
+            <label>
+              Entry Time
+              <input id="entryTime" name="entryTime" type="time" required />
             </label>
           </div>
 
@@ -511,11 +529,13 @@
       const descriptionInput = document.getElementById("description");
       const caloriesInput = document.getElementById("calories");
       const proteinInput = document.getElementById("protein");
-      const timePreviewInput = document.getElementById("timePreview");
+      const waterInput = document.getElementById("water");
+      const entryTimeInput = document.getElementById("entryTime");
       const entriesContainer = document.getElementById("entries");
       const todayCalories = document.getElementById("todayCalories");
       const todayCount = document.getElementById("todayCount");
       const todayProtein = document.getElementById("todayProtein");
+      const todayWater = document.getElementById("todayWater");
       const dayCount = document.getElementById("dayCount");
       const latestTime = document.getElementById("latestTime");
       const latestEntry = document.getElementById("latestEntry");
@@ -528,6 +548,7 @@
       let currentDayKey = "";
       const entries = loadEntries();
 
+      syncEntryTimeInput(true);
       refreshClockAndDay();
       setInterval(refreshClockAndDay, 30000);
       registerServiceWorker();
@@ -539,6 +560,8 @@
         const description = descriptionInput.value.trim();
         const calories = Number.parseInt(caloriesInput.value, 10);
         const protein = Number.parseInt(proteinInput.value, 10);
+        const water = Number.parseFloat(waterInput.value);
+        const entryTime = entryTimeInput.value;
 
         if (
           !description
@@ -546,23 +569,29 @@
           || calories < 0
           || Number.isNaN(protein)
           || protein < 0
+          || Number.isNaN(water)
+          || water < 0
+          || !entryTime
         ) {
           return;
         }
+
+        const createdAt = buildEntryTimestamp(entryTime);
 
         const entry = {
           id: crypto.randomUUID(),
           description,
           calories,
           protein,
-          createdAt: new Date().toISOString(),
+          water,
+          createdAt,
         };
 
         entries.unshift(entry);
         saveEntries();
         render();
         form.reset();
-        refreshClockAndDay();
+        syncEntryTimeInput();
         descriptionInput.focus();
         setStatus(`Saved ${entry.description} at ${formatTime(entry.createdAt)}.`);
       });
@@ -605,11 +634,15 @@
         const totalProteinToday = todaysEntries.reduce((sum, entry) => {
           return sum + (entry.protein || 0);
         }, 0);
+        const totalWaterToday = todaysEntries.reduce((sum, entry) => {
+          return sum + (entry.water || 0);
+        }, 0);
         const mostRecentEntry = entries[0];
 
         todayCalories.textContent = String(totalToday);
         todayCount.textContent = String(todaysEntries.length);
         todayProtein.textContent = `${totalProteinToday}g`;
+        todayWater.textContent = formatWater(totalWaterToday);
         dayCount.textContent = String(dayGroups.length);
         latestTime.textContent = mostRecentEntry ? formatTime(mostRecentEntry.createdAt) : "--";
         latestEntry.textContent = mostRecentEntry
@@ -638,6 +671,8 @@
                       <strong>${entry.calories}</strong>
                       <span class="entry-meta entry-number-label">Protein</span>
                       <strong>${entry.protein || 0}g</strong>
+                      <span class="entry-meta entry-number-label">Water</span>
+                      <strong>${formatWater(entry.water || 0)}</strong>
                     </div>
                   </article>
                 `;
@@ -653,7 +688,7 @@
                   </div>
                   <div class="day-totals">
                     <strong>${group.calories} cal</strong>
-                    <span>${group.protein}g protein</span>
+                    <span>${group.protein}g protein • ${formatWater(group.water)} water</span>
                   </div>
                 </summary>
                 <div class="day-group-body">
@@ -679,15 +714,11 @@
         });
       }
 
-      function updateTimePreview() {
-        timePreviewInput.value = formatTimestamp(new Date().toISOString());
-      }
-
       function refreshClockAndDay() {
-        updateTimePreview();
         const nextDayKey = formatDayKey(new Date());
         if (nextDayKey !== currentDayKey) {
           currentDayKey = nextDayKey;
+          syncEntryTimeInput(true);
           render();
         }
       }
@@ -776,6 +807,7 @@
             existingGroup.entries.push(entry);
             existingGroup.calories += entry.calories;
             existingGroup.protein += entry.protein || 0;
+            existingGroup.water += entry.water || 0;
             return;
           }
 
@@ -785,6 +817,7 @@
             isToday: dayKey === todayKey,
             calories: entry.calories,
             protein: entry.protein || 0,
+            water: entry.water || 0,
             entries: [entry],
           });
         });
@@ -800,6 +833,30 @@
           month: "short",
           day: "numeric",
         });
+      }
+
+      function syncEntryTimeInput(force = false) {
+        if (force || !entryTimeInput.value) {
+          entryTimeInput.value = currentTimeValue();
+        }
+      }
+
+      function currentTimeValue() {
+        const now = new Date();
+        const hours = String(now.getHours()).padStart(2, "0");
+        const minutes = String(now.getMinutes()).padStart(2, "0");
+        return `${hours}:${minutes}`;
+      }
+
+      function buildEntryTimestamp(timeValue) {
+        const [hours, minutes] = timeValue.split(":").map(Number);
+        const entryDate = new Date();
+        entryDate.setHours(hours, minutes, 0, 0);
+        return entryDate.toISOString();
+      }
+
+      function formatWater(value) {
+        return Number.isInteger(value) ? String(value) : value.toFixed(1);
       }
 
       function escapeHtml(value) {
