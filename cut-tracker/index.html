@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Cut Tracker</title>
+    <meta
+      name="description"
+      content="A simple intake tracker for logging meals, calories, and timestamps."
+    />
+    <meta name="theme-color" content="#c75b39" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Cut Tracker" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/icon-180.png" />
+    <style>
+      :root {
+        --bg: #f4efe7;
+        --panel: rgba(255, 252, 247, 0.95);
+        --ink: #1f1a17;
+        --muted: #6b6056;
+        --accent: #c75b39;
+        --accent-dark: #9b4327;
+        --accent-soft: rgba(199, 91, 57, 0.12);
+        --line: rgba(31, 26, 23, 0.12);
+        --shadow: 0 24px 60px rgba(73, 53, 39, 0.14);
+        --success: #256b4f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--bg);
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Georgia, "Times New Roman", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(199, 91, 57, 0.18), transparent 30%),
+          linear-gradient(180deg, #f9f4ec 0%, var(--bg) 55%, #efe7dd 100%);
+      }
+
+      .app {
+        width: min(760px, 100%);
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: calc(18px + env(safe-area-inset-top)) 16px
+          calc(28px + env(safe-area-inset-bottom));
+      }
+
+      .hero {
+        position: relative;
+        padding: 24px 20px;
+        border-radius: 28px;
+        background: var(--panel);
+        border: 1px solid rgba(255, 255, 255, 0.7);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: auto -10% -35% auto;
+        width: 220px;
+        height: 220px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(199, 91, 57, 0.18), transparent 65%);
+        pointer-events: none;
+      }
+
+      .eyebrow {
+        margin: 0 0 10px;
+        font-size: 0.78rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2.2rem, 9vw, 3.7rem);
+        line-height: 0.92;
+      }
+
+      .subtext {
+        margin: 14px 0 18px;
+        max-width: 32ch;
+        color: var(--muted);
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+
+      .install-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .hint {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .shell {
+        margin-top: 16px;
+        padding: 16px;
+        border-radius: 26px;
+        background: rgba(255, 252, 247, 0.86);
+        border: 1px solid rgba(255, 255, 255, 0.65);
+        box-shadow: var(--shadow);
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .stat {
+        padding: 14px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.74);
+        border: 1px solid var(--line);
+      }
+
+      .stat-label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 0.78rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .stat-value {
+        font-size: 1.7rem;
+        font-weight: 700;
+      }
+
+      form {
+        display: grid;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      label {
+        display: grid;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      input {
+        width: 100%;
+        min-height: 52px;
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.92);
+        color: var(--ink);
+        font: inherit;
+      }
+
+      input:focus {
+        outline: 2px solid rgba(199, 91, 57, 0.28);
+        border-color: rgba(199, 91, 57, 0.45);
+      }
+
+      .field-row {
+        display: grid;
+        grid-template-columns: 1.6fr 1fr;
+        gap: 12px;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+      }
+
+      button {
+        min-height: 50px;
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 18px;
+        font: inherit;
+        cursor: pointer;
+        transition: transform 140ms ease, opacity 140ms ease, background 140ms ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+      }
+
+      .primary {
+        background: var(--accent);
+        color: #fffaf5;
+      }
+
+      .primary:hover {
+        background: var(--accent-dark);
+      }
+
+      .secondary {
+        background: rgba(31, 26, 23, 0.08);
+        color: var(--ink);
+      }
+
+      .install-button {
+        background: rgba(31, 26, 23, 0.08);
+        color: var(--ink);
+      }
+
+      .entries-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-end;
+        margin-bottom: 14px;
+      }
+
+      .entries-top h2 {
+        margin: 0;
+        font-size: 1.08rem;
+      }
+
+      .entries-top p {
+        margin: 0;
+        font-size: 0.9rem;
+        color: var(--muted);
+        text-align: right;
+      }
+
+      .entries {
+        display: grid;
+        gap: 12px;
+      }
+
+      .entry {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        padding: 16px;
+        border-radius: 20px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.78);
+      }
+
+      .entry h3 {
+        margin: 0 0 6px;
+        font-size: 1rem;
+      }
+
+      .entry-meta {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .entry-calories {
+        text-align: right;
+      }
+
+      .entry-calories strong {
+        display: block;
+        font-size: 1.32rem;
+      }
+
+      .delete {
+        margin-top: 10px;
+        min-height: 38px;
+        padding: 8px 12px;
+        background: var(--accent-soft);
+        color: var(--accent-dark);
+      }
+
+      .empty {
+        padding: 22px 18px;
+        border-radius: 20px;
+        border: 1px dashed var(--line);
+        background: rgba(255, 255, 255, 0.55);
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .status {
+        min-height: 22px;
+        margin: 10px 0 0;
+        color: var(--success);
+        font-size: 0.9rem;
+      }
+
+      @media (min-width: 700px) {
+        .app {
+          padding-left: 24px;
+          padding-right: 24px;
+        }
+
+        .hero,
+        .shell {
+          padding: 24px;
+        }
+
+        .stats {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 520px) {
+        .field-row,
+        .actions,
+        .entry {
+          grid-template-columns: 1fr;
+        }
+
+        .entry-calories,
+        .entries-top p {
+          text-align: left;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <section class="hero">
+        <p class="eyebrow">Abs In 3 Months</p>
+        <h1>Cut Tracker</h1>
+        <p class="subtext">
+          Log what you ate, enter the calories yourself, and let the app stamp the
+          time. Fast enough to use between meals.
+        </p>
+        <div class="install-row">
+          <button class="install-button" id="installButton" type="button" hidden>
+            Install App
+          </button>
+          <p class="hint" id="installHint">
+            On iPhone, open in Safari and tap Share, then Add to Home Screen.
+          </p>
+        </div>
+      </section>
+
+      <section class="shell">
+        <section class="stats" aria-label="Tracker summary">
+          <article class="stat">
+            <span class="stat-label">Today's Calories</span>
+            <strong class="stat-value" id="todayCalories">0</strong>
+          </article>
+          <article class="stat">
+            <span class="stat-label">Today's Entries</span>
+            <strong class="stat-value" id="todayCount">0</strong>
+          </article>
+          <article class="stat">
+            <span class="stat-label">All Entries</span>
+            <strong class="stat-value" id="allCount">0</strong>
+          </article>
+          <article class="stat">
+            <span class="stat-label">Latest</span>
+            <strong class="stat-value" id="latestTime">--</strong>
+          </article>
+        </section>
+
+        <form id="entryForm">
+          <label>
+            What did you have?
+            <input
+              id="description"
+              name="description"
+              type="text"
+              placeholder="Chicken bowl, shake, eggs..."
+              autocomplete="off"
+              enterkeyhint="next"
+              required
+            />
+          </label>
+
+          <div class="field-row">
+            <label>
+              Calories
+              <input
+                id="calories"
+                name="calories"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                step="1"
+                placeholder="450"
+                enterkeyhint="done"
+                required
+              />
+            </label>
+
+            <label>
+              Time Added
+              <input id="timePreview" type="text" disabled />
+            </label>
+          </div>
+
+          <div class="actions">
+            <button class="primary" type="submit">Add Entry</button>
+            <button class="secondary" id="clearAll" type="button">Clear All</button>
+          </div>
+        </form>
+
+        <p class="status" id="statusMessage"></p>
+
+        <section aria-live="polite">
+          <div class="entries-top">
+            <h2>Entries</h2>
+            <p id="latestEntry">No entries yet</p>
+          </div>
+          <div class="entries" id="entries"></div>
+        </section>
+      </section>
+    </main>
+
+    <script>
+      const STORAGE_KEY = "abs-cut-intake-tracker";
+      const form = document.getElementById("entryForm");
+      const descriptionInput = document.getElementById("description");
+      const caloriesInput = document.getElementById("calories");
+      const timePreviewInput = document.getElementById("timePreview");
+      const entriesContainer = document.getElementById("entries");
+      const todayCalories = document.getElementById("todayCalories");
+      const todayCount = document.getElementById("todayCount");
+      const allCount = document.getElementById("allCount");
+      const latestTime = document.getElementById("latestTime");
+      const latestEntry = document.getElementById("latestEntry");
+      const clearAllButton = document.getElementById("clearAll");
+      const statusMessage = document.getElementById("statusMessage");
+      const installButton = document.getElementById("installButton");
+      const installHint = document.getElementById("installHint");
+
+      let deferredInstallPrompt = null;
+      const entries = loadEntries();
+
+      updateTimePreview();
+      setInterval(updateTimePreview, 30000);
+      render();
+      registerServiceWorker();
+      setupInstallPrompt();
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+
+        const description = descriptionInput.value.trim();
+        const calories = Number.parseInt(caloriesInput.value, 10);
+
+        if (!description || Number.isNaN(calories) || calories < 0) {
+          return;
+        }
+
+        const entry = {
+          id: crypto.randomUUID(),
+          description,
+          calories,
+          createdAt: new Date().toISOString(),
+        };
+
+        entries.unshift(entry);
+        saveEntries();
+        render();
+        form.reset();
+        updateTimePreview();
+        descriptionInput.focus();
+        setStatus(`Saved ${entry.description} at ${formatTime(entry.createdAt)}.`);
+      });
+
+      clearAllButton.addEventListener("click", () => {
+        if (!entries.length) {
+          return;
+        }
+
+        if (!window.confirm("Clear all intake entries?")) {
+          return;
+        }
+
+        entries.length = 0;
+        saveEntries();
+        render();
+        setStatus("All entries cleared.");
+      });
+
+      function loadEntries() {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          return saved ? JSON.parse(saved) : [];
+        } catch {
+          return [];
+        }
+      }
+
+      function saveEntries() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+      }
+
+      function render() {
+        const todayKey = formatDayKey(new Date());
+        const todaysEntries = entries.filter((entry) => {
+          return formatDayKey(new Date(entry.createdAt)) === todayKey;
+        });
+        const totalToday = todaysEntries.reduce((sum, entry) => sum + entry.calories, 0);
+        const mostRecentEntry = entries[0];
+
+        todayCalories.textContent = String(totalToday);
+        todayCount.textContent = String(todaysEntries.length);
+        allCount.textContent = String(entries.length);
+        latestTime.textContent = mostRecentEntry ? formatTime(mostRecentEntry.createdAt) : "--";
+        latestEntry.textContent = mostRecentEntry
+          ? `Latest entry: ${formatTimestamp(mostRecentEntry.createdAt)}`
+          : "No entries yet";
+
+        if (!entries.length) {
+          entriesContainer.innerHTML =
+            '<div class="empty">Your intake entries will show up here as you log them.</div>';
+          return;
+        }
+
+        entriesContainer.innerHTML = entries
+          .map((entry) => {
+            return `
+              <article class="entry">
+                <div>
+                  <h3>${escapeHtml(entry.description)}</h3>
+                  <p class="entry-meta">${formatTimestamp(entry.createdAt)}</p>
+                  <button class="delete" type="button" data-id="${entry.id}">Delete</button>
+                </div>
+                <div class="entry-calories">
+                  <span class="entry-meta">Calories</span>
+                  <strong>${entry.calories}</strong>
+                </div>
+              </article>
+            `;
+          })
+          .join("");
+
+        entriesContainer.querySelectorAll(".delete").forEach((button) => {
+          button.addEventListener("click", () => {
+            const index = entries.findIndex((entry) => entry.id === button.dataset.id);
+            if (index === -1) {
+              return;
+            }
+
+            const [removed] = entries.splice(index, 1);
+            saveEntries();
+            render();
+            setStatus(`Deleted ${removed.description}.`);
+          });
+        });
+      }
+
+      function updateTimePreview() {
+        timePreviewInput.value = formatTimestamp(new Date().toISOString());
+      }
+
+      function setStatus(message) {
+        statusMessage.textContent = message;
+        window.clearTimeout(setStatus.timeoutId);
+        setStatus.timeoutId = window.setTimeout(() => {
+          statusMessage.textContent = "";
+        }, 2600);
+      }
+
+      function setupInstallPrompt() {
+        const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+        const isStandalone = window.matchMedia("(display-mode: standalone)").matches
+          || window.navigator.standalone === true;
+
+        if (isStandalone) {
+          installHint.textContent = "Installed app mode is active.";
+        } else if (!isIos) {
+          installHint.textContent = "Use Install App for one-tap logging from your home screen.";
+        }
+
+        window.addEventListener("beforeinstallprompt", (event) => {
+          event.preventDefault();
+          deferredInstallPrompt = event;
+          installButton.hidden = false;
+        });
+
+        installButton.addEventListener("click", async () => {
+          if (!deferredInstallPrompt) {
+            return;
+          }
+
+          deferredInstallPrompt.prompt();
+          await deferredInstallPrompt.userChoice;
+          deferredInstallPrompt = null;
+          installButton.hidden = true;
+        });
+      }
+
+      async function registerServiceWorker() {
+        if (!("serviceWorker" in navigator)) {
+          return;
+        }
+
+        try {
+          await navigator.serviceWorker.register("service-worker.js");
+        } catch {
+          setStatus("Offline mode becomes available once the app is served from a site.");
+        }
+      }
+
+      function formatTimestamp(isoString) {
+        return new Date(isoString).toLocaleString([], {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        });
+      }
+
+      function formatTime(isoString) {
+        return new Date(isoString).toLocaleTimeString([], {
+          hour: "numeric",
+          minute: "2-digit",
+        });
+      }
+
+      function formatDayKey(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+
+      function escapeHtml(value) {
+        return value
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+    </script>
+  </body>
+</html>
