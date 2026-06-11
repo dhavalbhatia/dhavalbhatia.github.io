@@ -6,6 +6,7 @@ Simple intake tracker for logging:
 - calories
 - protein
 - time added
+- day-by-day expandable history
 
 ## Run locally
 

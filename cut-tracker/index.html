@@ -182,7 +182,7 @@
 
       .field-row {
         display: grid;
-        grid-template-columns: 1.6fr 1fr;
+        grid-template-columns: 1.2fr 1fr 1fr;
         gap: 12px;
       }
 
@@ -248,6 +248,60 @@
       .entries {
         display: grid;
         gap: 12px;
+      }
+
+      .day-group {
+        border-radius: 22px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.72);
+        overflow: hidden;
+      }
+
+      .day-group summary {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 16px;
+        cursor: pointer;
+        list-style: none;
+      }
+
+      .day-group summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .day-group[open] summary {
+        border-bottom: 1px solid var(--line);
+      }
+
+      .day-title {
+        margin: 0 0 6px;
+        font-size: 1rem;
+      }
+
+      .day-meta {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .day-totals {
+        text-align: right;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .day-totals strong {
+        display: block;
+        color: var(--ink);
+        font-size: 1.05rem;
+      }
+
+      .day-group-body {
+        display: grid;
+        gap: 12px;
+        padding: 16px;
       }
 
       .entry {
@@ -332,6 +386,7 @@
           grid-template-columns: 1fr;
         }
 
+        .day-totals,
         .entry-numbers,
         .entries-top p {
           text-align: left;
@@ -373,8 +428,8 @@
             <strong class="stat-value" id="todayProtein">0g</strong>
           </article>
           <article class="stat">
-            <span class="stat-label">All Entries</span>
-            <strong class="stat-value" id="allCount">0</strong>
+            <span class="stat-label">Days Logged</span>
+            <strong class="stat-value" id="dayCount">0</strong>
           </article>
           <article class="stat">
             <span class="stat-label">Latest</span>
@@ -442,8 +497,8 @@
 
         <section aria-live="polite">
           <div class="entries-top">
-            <h2>Entries</h2>
-            <p id="latestEntry">No entries yet</p>
+            <h2>Daily History</h2>
+            <p id="latestEntry">Today resets automatically at midnight</p>
           </div>
           <div class="entries" id="entries"></div>
         </section>
@@ -461,7 +516,7 @@
       const todayCalories = document.getElementById("todayCalories");
       const todayCount = document.getElementById("todayCount");
       const todayProtein = document.getElementById("todayProtein");
-      const allCount = document.getElementById("allCount");
+      const dayCount = document.getElementById("dayCount");
       const latestTime = document.getElementById("latestTime");
       const latestEntry = document.getElementById("latestEntry");
       const clearAllButton = document.getElementById("clearAll");
@@ -470,11 +525,11 @@
       const installHint = document.getElementById("installHint");
 
       let deferredInstallPrompt = null;
+      let currentDayKey = "";
       const entries = loadEntries();
 
-      updateTimePreview();
-      setInterval(updateTimePreview, 30000);
-      render();
+      refreshClockAndDay();
+      setInterval(refreshClockAndDay, 30000);
       registerServiceWorker();
       setupInstallPrompt();
 
@@ -507,7 +562,7 @@
         saveEntries();
         render();
         form.reset();
-        updateTimePreview();
+        refreshClockAndDay();
         descriptionInput.focus();
         setStatus(`Saved ${entry.description} at ${formatTime(entry.createdAt)}.`);
       });
@@ -545,6 +600,7 @@
         const todaysEntries = entries.filter((entry) => {
           return formatDayKey(new Date(entry.createdAt)) === todayKey;
         });
+        const dayGroups = buildDayGroups(entries);
         const totalToday = todaysEntries.reduce((sum, entry) => sum + entry.calories, 0);
         const totalProteinToday = todaysEntries.reduce((sum, entry) => {
           return sum + (entry.protein || 0);
@@ -554,34 +610,56 @@
         todayCalories.textContent = String(totalToday);
         todayCount.textContent = String(todaysEntries.length);
         todayProtein.textContent = `${totalProteinToday}g`;
-        allCount.textContent = String(entries.length);
+        dayCount.textContent = String(dayGroups.length);
         latestTime.textContent = mostRecentEntry ? formatTime(mostRecentEntry.createdAt) : "--";
         latestEntry.textContent = mostRecentEntry
           ? `Latest entry: ${formatTimestamp(mostRecentEntry.createdAt)}`
-          : "No entries yet";
+          : "Today resets automatically at midnight";
 
         if (!entries.length) {
           entriesContainer.innerHTML =
-            '<div class="empty">Your intake entries will show up here as you log them.</div>';
+            '<div class="empty">Your intake history will show up here day by day as you log it.</div>';
           return;
         }
 
-        entriesContainer.innerHTML = entries
-          .map((entry) => {
+        entriesContainer.innerHTML = dayGroups
+          .map((group) => {
+            const entryMarkup = group.entries
+              .map((entry) => {
+                return `
+                  <article class="entry">
+                    <div>
+                      <h3>${escapeHtml(entry.description)}</h3>
+                      <p class="entry-meta">${formatTimestamp(entry.createdAt)}</p>
+                      <button class="delete" type="button" data-id="${entry.id}">Delete</button>
+                    </div>
+                    <div class="entry-numbers">
+                      <span class="entry-meta">Calories</span>
+                      <strong>${entry.calories}</strong>
+                      <span class="entry-meta entry-number-label">Protein</span>
+                      <strong>${entry.protein || 0}g</strong>
+                    </div>
+                  </article>
+                `;
+              })
+              .join("");
+
             return `
-              <article class="entry">
-                <div>
-                  <h3>${escapeHtml(entry.description)}</h3>
-                  <p class="entry-meta">${formatTimestamp(entry.createdAt)}</p>
-                  <button class="delete" type="button" data-id="${entry.id}">Delete</button>
+              <details class="day-group" ${group.isToday ? "open" : ""}>
+                <summary>
+                  <div>
+                    <h3 class="day-title">${group.isToday ? "Today" : escapeHtml(group.label)}</h3>
+                    <p class="day-meta">${group.entries.length} ${group.entries.length === 1 ? "entry" : "entries"}</p>
+                  </div>
+                  <div class="day-totals">
+                    <strong>${group.calories} cal</strong>
+                    <span>${group.protein}g protein</span>
+                  </div>
+                </summary>
+                <div class="day-group-body">
+                  ${entryMarkup}
                 </div>
-                <div class="entry-numbers">
-                  <span class="entry-meta">Calories</span>
-                  <strong>${entry.calories}</strong>
-                  <span class="entry-meta entry-number-label">Protein</span>
-                  <strong>${entry.protein || 0}g</strong>
-                </div>
-              </article>
+              </details>
             `;
           })
           .join("");
@@ -603,6 +681,15 @@
 
       function updateTimePreview() {
         timePreviewInput.value = formatTimestamp(new Date().toISOString());
+      }
+
+      function refreshClockAndDay() {
+        updateTimePreview();
+        const nextDayKey = formatDayKey(new Date());
+        if (nextDayKey !== currentDayKey) {
+          currentDayKey = nextDayKey;
+          render();
+        }
       }
 
       function setStatus(message) {
@@ -675,6 +762,44 @@
         const month = String(date.getMonth() + 1).padStart(2, "0");
         const day = String(date.getDate()).padStart(2, "0");
         return `${year}-${month}-${day}`;
+      }
+
+      function buildDayGroups(sourceEntries) {
+        const groups = new Map();
+        const todayKey = formatDayKey(new Date());
+
+        sourceEntries.forEach((entry) => {
+          const dayKey = formatDayKey(new Date(entry.createdAt));
+          const existingGroup = groups.get(dayKey);
+
+          if (existingGroup) {
+            existingGroup.entries.push(entry);
+            existingGroup.calories += entry.calories;
+            existingGroup.protein += entry.protein || 0;
+            return;
+          }
+
+          groups.set(dayKey, {
+            key: dayKey,
+            label: formatDayLabel(entry.createdAt),
+            isToday: dayKey === todayKey,
+            calories: entry.calories,
+            protein: entry.protein || 0,
+            entries: [entry],
+          });
+        });
+
+        return Array.from(groups.values()).sort((left, right) => {
+          return right.key.localeCompare(left.key);
+        });
+      }
+
+      function formatDayLabel(isoString) {
+        return new Date(isoString).toLocaleDateString([], {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        });
       }
 
       function escapeHtml(value) {
